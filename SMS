@@ -1,0 +1,65 @@
+#include <SoftwareSerial.h>
+
+SoftwareSerial SIM900A(10, 11); // RX | TX
+// Hubungkan pin TX SIM900A ke pin 10 Arduino (RX).
+// Hubungkan pin RX SIM900A ke pin 11 Arduino (TX).
+
+void setup()
+{
+  // Memulai komunikasi serial dengan komputer host
+  Serial.begin(9600);
+  while (!Serial)
+    ;
+
+  Serial.println("Arduino with SIM900A is ready");
+
+  // Memulai komunikasi dengan SIM900A pada 9600 bps
+  SIM900A.begin(9600);
+  delay(1000);
+
+  Serial.println("Setup Complete! SIM900A is Ready!");
+}
+
+void loop()
+{
+  // Membaca dari SIM900A dan mengirim ke Serial Monitor Arduino
+  if (SIM900A.available())
+  {
+    char c = SIM900A.read();
+    Serial.write(c);
+  }
+
+  // Membaca dari Serial Monitor Arduino dan mengirim ke SIM900A
+  if (Serial.available())
+  {
+    char c = Serial.read();
+    SIM900A.write(c);
+  }
+
+  // Mengirim pesan SMS jika tombol 'S' atau 's' ditekan
+  if (Serial.available())
+  {
+    char key = Serial.read();
+    if (key == 'S' || key == 's')
+    {
+      sendSMS();
+    }
+  }
+}
+
+void sendSMS()
+{
+  SIM900A.println("AT+CMGF=1"); // Mengatur mode teks
+  delay(1000);
+
+  SIM900A.println("AT+CMGS=\"081336573553\""); // Mengatur nomor tujuan
+  delay(1000);
+
+  SIM900A.println("Hello, Tes E-BEGAL"); // Isi pesan
+  delay(1000);
+
+  SIM900A.println((char)26); // Mengirim karakter Ctrl+Z sebagai tanda akhir pesan
+  delay(5000); // Tunggu hingga proses pengiriman selesai
+
+  Serial.println("SMS sent!");
+}
