@@ -1,18 +1,11 @@
-//KOMPONEN YANG DIGUNAKAN GPS DAN LCDI2C
-//WIRING
-//GPS = RX(3); TX(2)
-//LCD = SDA(A4); SCL(A5)
-
-#include <TinyGPS++.h>
-#include <SoftwareSerial.h>
-#include <Wire.h>
-#include <LiquidCrystal_I2C.h>
+#include <TinyGPS++.h> //Libary TinyGPS
+#include <SoftwareSerial.h> //Libarary bawaan
 
 // Choose two Arduino pins to use for software serial
-int RXPin = 2; // Connect ke TX GPS
-int TXPin = 3; // Connect ke RX GPS
+int RXPin = 2; //Connect ke TX GPS
+int TXPin = 3; //Connect ke RX GPS
 
-int GPSBaud = 9600; // Biarin default
+int GPSBaud = 9600; //Biarin default
 
 // Membuat objek TinyGPS++
 TinyGPSPlus gps;
@@ -20,41 +13,28 @@ TinyGPSPlus gps;
 // Mmebuat koneksi serial dengan nama "gpsSerial"
 SoftwareSerial gpsSerial(RXPin, TXPin);
 
-// Membuat objek LiquidCrystal_I2C untuk LCD I2C
-LiquidCrystal_I2C lcd(0x27, 16, 2);  // Alamat I2C LCD dan ukuran kolom dan baris
-
 void setup()
 {
-  // Memulai koneksi serial pada baudrate 9600
+  //Memulai koneksi serial pada baudrate 9600
   Serial.begin(9600);
 
-  // Memulai koneksi serial dengan sensor
+  //Memulai koneksi serial dengan sensor
   gpsSerial.begin(GPSBaud);
-
-  // Menginisialisasi LCD I2C
-  lcd.begin();
-  lcd.backlight();
-  lcd.clear();
 }
 
 void loop()
 {
-  // Membuat tampilan data ketika terdapat koneksi
+  //Membuat tampilan data ketika terdapat koneksi
   while (gpsSerial.available() > 0)
-  {
     if (gps.encode(gpsSerial.read()))
-    {
       displayInfo();
-      displayOnLCD();
-    }
-  }
 
   // Jika dalam 5 detik tidak ada koneksi, maka akan muncul error "No GPS detected"
   // Periksa sambungan dan reset arduino
   if (millis() > 5000 && gps.charsProcessed() < 10)
   {
     Serial.println("No GPS detected");
-    while (true);
+    while(true);
   }
 }
 
@@ -73,7 +53,7 @@ void displayInfo()
   {
     Serial.println("Location: Not Available");
   }
-
+  
   Serial.print("Date: ");
   if (gps.date.isValid())
   {
@@ -111,25 +91,4 @@ void displayInfo()
   Serial.println();
   Serial.println();
   delay(1000);
-}
-
-void displayOnLCD()
-{
-  lcd.clear();
-  
-  if (gps.location.isValid())
-  {
-    lcd.setCursor(0, 0);
-    lcd.print("Lat: ");
-    lcd.print(gps.location.lat(), 6);
-
-    lcd.setCursor(0, 1);
-    lcd.print("Lng: ");
-    lcd.print(gps.location.lng(), 6);
-  }
-  else
-  {
-    lcd.setCursor(0, 0);
-    lcd.print("Location: N/A");
-  }
 }
