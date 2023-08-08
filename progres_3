@@ -1,0 +1,35 @@
+#include <TinyGPS++.h>
+#include <SoftwareSerial.h>
+
+// Inisialisasi objek Serial untuk berkomunikasi dengan sensor GPS
+SoftwareSerial gpsSerial(D2, D1); // RX (D2) dan TX (D1)
+
+// Inisialisasi objek TinyGPS++
+TinyGPSPlus gps;
+
+void setup() {
+  Serial.begin(9600); // Inisialisasi Serial Monitor untuk debugging
+  gpsSerial.begin(9600); // Inisialisasi komunikasi dengan sensor GPS
+
+  // Tunggu sampai sensor GPS siap
+  delay(1000);
+
+  Serial.println("NodeMCU dan Sensor GPS Terhubung!");
+}
+
+void loop() {
+  // Baca data dari sensor GPS jika ada data tersedia
+  while (gpsSerial.available() > 0) {
+    if (gps.encode(gpsSerial.read())) {
+      // Cetak data latitude dan longitude ke Serial Monitor
+      if (gps.location.isValid()) {
+        Serial.print("Latitude: ");
+        Serial.println(gps.location.lat(), 6); // Menggunakan 6 angka di belakang koma
+
+        Serial.print("Longitude: ");
+        Serial.println(gps.location.lng(), 6); // Menggunakan 6 angka di belakang koma
+      }
+    }
+  }
+  delay(1000);
+}
