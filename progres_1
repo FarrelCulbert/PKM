@@ -1,0 +1,103 @@
+#include <Arduino.h>
+#include <SoftwareSerial.h>
+#include <Firebase_ESP_Client.h>
+
+// Provide the token generation process info.
+#include "addons/TokenHelper.h"
+// Provide the RTDB payload printing info and other helper functions.
+#include "addons/RTDBHelper.h"
+
+#define SIM900_RX_PIN 7 // Pin RX SIM900 terhubung ke pin 7 NodeMCU
+#define SIM900_TX_PIN 8 // Pin TX SIM900 terhubung ke pin 8 NodeMCU
+
+SoftwareSerial sim900(SIM900_RX_PIN, SIM900_TX_PIN); // RX, TX
+
+// Insert Firebase project API Key
+#define API_KEY "AIzaSyCLgd4zlFqp2sc-_aAWai05CC4Th3LGW60"
+
+// Define the RTDB URL
+#define DATABASE_URL "https://e-begal-default-rtdb.asia-southeast1.firebasedatabase.app/"
+
+// Define Firebase Data object
+FirebaseData fbdo;
+
+FirebaseAuth auth;
+FirebaseConfig config;
+
+unsigned long sendDataPrevMillis = 0;
+int count = 0;
+bool signupOK = false;
+
+void setup(){
+  Serial.begin(115200);
+  sim900.begin(9600);
+
+  Serial.println("Connecting to SIM900...");
+  delay(2000);
+
+  /* Assign the api key (required) */
+  config.api_key = API_KEY;
+
+  /* Assign the RTDB URL (required) */
+  config.database_url = DATABASE_URL;
+
+  /* Sign up */
+  if (Firebase.signUp(&config, &auth, "", "")){
+    Serial.println("Firebase sign-up successful!");
+    signupOK = true;
+  }
+  else{
+    Serial.printf("Firebase sign-up failed: %s\n", config.signer.signupError.message.c_str());
+  }
+
+  /* Assign the callback function for the long running token generation task */
+  config.token_status_callback = tokenStatusCallback; // see addons/TokenHelper.h
+  
+  Firebase.begin(&config, &auth);
+}
+
+void loop(){
+  if (!sim900.isListening()){
+    Serial.println("Connecting to SIM900...");
+    sim900.listen();
+    delay(1000);
+  }
+
+  if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 15000 || sendDataPrevMillis == 0)){
+    sendDataPrevMillis = millis();
+    // Write an Int number on the database path test/int
+    if (Firebase.RTDB.setInt(&fbdo, "test/int", count)){
+      Serial.println("PASSED");
+      Serial.println("PATH: " + fbdo.dataPath());
+      Serial.println("TYPE: " + fbdo.dataType());
+    }
+    else {
+      Serial.println("FAILED");
+      Serial.println("REASON: " + fbdo.errorReason());
+    }
+    count++;
+    
+    // Write a random Integer number (1-100) on the database path test/random
+    int randomNum = random(1, 101);
+    if (Firebase.RTDB.setInt(&fbdo, "test/random", randomNum)){
+      Serial.println("PASSED");
+      Serial.println("PATH: " + fbdo.dataPath());
+      Serial.println("TYPE: " + fbdo.dataType());
+    }
+    else {
+      Serial.println("FAILED");
+      Serial.println("REASON: " + fbdo.errorReason());
+    }
+    
+    // Write a Float number on the database path test/float
+    if (Firebase.RTDB.setFloat(&fbdo, "test/float", 0.01 + random(0, 100))){
+      Serial.println("PASSED");
+      Serial.println("PATH: " + fbdo.dataPath());
+      Serial.println("TYPE: " + fbdo.dataType());
+    }
+    else {
+      Serial.println("FAILED");
+      Serial.println("REASON: " + fbdo.errorReason());
+    }
+  }
+}
