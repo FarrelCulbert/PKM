@@ -1,0 +1,58 @@
+#include <FirebaseArduino.h>
+#include <SoftwareSerial.h>
+
+// Configure SIM800L connection
+SoftwareSerial sim800lSerial(7, 8); // RX, TX
+
+// Configure Firebase credentials and URL
+#define FIREBASE_HOST "your-firebase-project.firebaseio.com"
+#define FIREBASE_AUTH "your-firebase-auth-token"
+
+void setup() {
+  Serial.begin(9600);
+  sim800lSerial.begin(9600);
+
+  Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
+  Firebase.reconnectWiFi(true); // Enable WiFi reconnection
+
+  Serial.println("SIM800L - Firebase Data Sender");
+}
+
+void sendATCommand(const char* command) {
+  sim800lSerial.println(command);
+  Serial.println("Sent: " + String(command));
+  delay(500);
+  
+  while (sim800lSerial.available()) {
+    String response = sim800lSerial.readString();
+    Serial.println("Received: " + response);
+  }
+}
+
+void loop() {
+  // Generate a random number between 1 and 100
+  int randomData = random(1, 101);
+
+  // Convert the random number to a string
+  String dataStr = String(randomData);
+
+  Serial.print("Generating random data: ");
+  Serial.println(dataStr);
+
+  sendATCommand("AT+CIPSHUT"); // Close any previous connections
+  sendATCommand("AT+CGATT=1"); // Attach to GPRS
+  sendATCommand("AT+CSTT=\"internet\",\"\",\"\""); // Set APN
+  sendATCommand("AT+CIICR"); // Bring up wireless connection
+  sendATCommand("AT+CIFSR"); // Get local IP address
+
+  Serial.print("Sending data to Firebase...");
+
+  // Send data to Firebase
+  if (Firebase.set("/randomData", dataStr)) {
+    Serial.println("Success");
+  } else {
+    Serial.println("Failed");
+  }
+
+  delay(5000); // Wait for 5 seconds before sending the next data
+}
