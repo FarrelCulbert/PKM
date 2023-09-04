@@ -1,0 +1,141 @@
+#include <Arduino.h>
+#if defined(ESP32)
+  #include <WiFi.h>
+#elif defined(ESP8266)
+  #include <ESP8266WiFi.h>
+#endif
+#include <Firebase_ESP_Client.h>
+#include <TinyGPS++.h> // Include the TinyGPS++ library
+#include <SoftwareSerial.h> // Include the SoftwareSerial library
+
+// GPS module setup
+SoftwareSerial gpsSerial(D2, D1); // RX (D2) and TX (D1) pins for SoftwareSerial
+TinyGPSPlus gps; // Create a TinyGPS++ object
+
+//pin saklar
+const int saklarpin = D2;
+
+// Provide the token generation process info.
+#include "addons/TokenHelper.h"
+// Provide the RTDB payload printing info and other helper functions.
+#include "addons/RTDBHelper.h"
+
+// Insert your network credentials
+#define WIFI_SSID "tes"
+#define WIFI_PASSWORD "12345678"
+
+// Insert Firebase project API Key
+#define API_KEY "AIzaSyCLgd4zlFqp2sc-_aAWai05CC4Th3LGW60"
+
+// Insert RTDB URL
+#define DATABASE_URL "https://e-begal-default-rtdb.asia-southeast1.firebasedatabase.app/"
+
+// Define Firebase Data object
+FirebaseData fbdo;
+
+FirebaseAuth auth;
+FirebaseConfig config;
+
+unsigned long sendDataPrevMillis = 0;
+int count = 0;
+bool signupOK = false;
+
+void setup(){
+  pinMode(saklarpin, INPUT_PULLUP);
+  Serial.begin(115200);
+  gpsSerial.begin(9600); // Initialize SoftwareSerial for GPS module
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED){
+    Serial.print(".");
+    delay(300);
+  }
+  Serial.println();
+  Serial.print("Connected with IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.println();
+
+  /* Assign the api key (required) */
+  config.api_key = API_KEY;
+
+  /* Assign the RTDB URL (required) */
+  config.database_url = DATABASE_URL;
+
+  /* Sign up */
+  if (Firebase.signUp(&config, &auth, "", "")){
+    Serial.println("ok");
+    signupOK = true;
+  }
+  else{
+    Serial.printf("%s\n", config.signer.signupError.message.c_str());
+  }
+
+  /* Assign the callback function for the long running token generation task */
+  config.token_status_callback = tokenStatusCallback; // see addons/TokenHelper.h
+  
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
+}
+
+void loop(){
+
+  //saklar int
+  int statussaklar = digitalRead(saklarpin);
+  // Call the GPS module to capture new data
+  while (gpsSerial.available() > 0) {
+    gps.encode(gpsSerial.read());
+  }
+
+  if (Firebase.ready() && signupOK && (millis() - sendDataPrevMillis > 15000 || sendDataPrevMillis == 0)){
+    sendDataPrevMillis = millis();
+    // Write an Int number on the database path test/int
+    if (Firebase.RTDB.setInt(&fbdo, "location/data", count)){
+      Serial.println("PASSED");
+      Serial.println("PATH: " + fbdo.dataPath());
+      Serial.println("TYPE: " + fbdo.dataType());
+    }
+    else {
+      Serial.println("FAILED");
+      Serial.println("REASON: " + fbdo.errorReason());
+    }
+    count++;
+    
+    // saklar mode
+    String modesaklar;
+
+   if (Firebase.RTDB.setInt(&fbdo, "location/mode", modesaklar)){
+      if (statussaklar == HIGH){
+        modesaklar = "Parkir";
+        Serial.println("Parkir");
+      } else {
+        modesaklar = "Begal";
+        Serial.println("Begal");
+      }
+    
+    }
+
+    // Write the latitude and longitude to the database path test/location
+    if (gps.location.isValid()) {
+      double latitude = gps.location.lat();
+      double longitude = gps.location.lng();
+      
+      if (Firebase.RTDB.setDouble(&fbdo, "location/latitude", latitude)) {
+        Serial.println("Latitude PASSED");
+      }
+      else {
+        Serial.println("Latitude FAILED");
+        Serial.println("REASON: " + fbdo.errorReason());
+      }
+      
+      if (Firebase.RTDB.setDouble(&fbdo, "location/longitude", longitude)) {
+        Serial.println("Longitude PASSED");
+      }
+      else {
+        Serial.println("Longitude FAILED");
+        Serial.println("REASON: " + fbdo.errorReason());
+      }
+    }
+
+    //
+  }
+}
