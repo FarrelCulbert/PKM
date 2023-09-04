@@ -1,0 +1,96 @@
+#include <ESP8266WiFi.h>
+#include <FirebaseESP8266.h>
+#include <SoftwareSerial.h>
+#include <TinyGPS++.h>
+
+// Konfigurasi Firebase
+#define FIREBASE_HOST "https://begal-80d2b-default-rtdb.asia-southeast1.firebasedatabase.app/"
+#define FIREBASE_AUTH "v0rcWjKsWtbecLJ4GunhLfpIVP3valKHsoXJCSlp"
+
+// WiFi SSID dan Password
+const char* WIFI_SSID = "tes";
+const char* WIFI_PASSWORD = "12345678";
+
+// Inisialisasi objek Firebase
+FirebaseData firebaseData;
+
+// Variabel untuk menyimpan status saklar, teks (begal atau parkir), dan angka berurutan
+int sequenceNumber = 0;
+const int saklarpin = D2;
+String mode;
+
+// Konfigurasi GPS
+SoftwareSerial gpsSerial(D3, D4); // RX, TX
+TinyGPSPlus gps;
+
+void setup() {
+  //SAKLAR
+  pinMode(saklarpin, INPUT_PULLUP); 
+  // Inisialisasi Serial Monitor
+  Serial.begin(115200);
+
+  // Inisialisasi GPS
+  gpsSerial.begin(9600);
+
+  // Menghubungkan ke WiFi
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+  Serial.println("Connected to WiFi");
+
+  // Inisialisasi Firebase
+  Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
+
+  // Tunggu hingga terhubung ke Firebase
+  unsigned long timeout = millis();
+  while (!Firebase.ready() && millis() - timeout < 5000) {
+    delay(100);
+  }
+  if (!Firebase.ready()) {
+    Serial.println("Gagal terhubung ke Firebase. Coba lagi nanti.");
+    while (1);
+  }
+}
+
+void loop() {
+  // Baca status saklar (gantilah ini sesuai dengan cara Anda membaca saklar)
+  int statussaklar = digitalRead(saklarpin);
+
+  
+  Firebase.setString(firebaseData, "/data/No", sequenceNumber);
+  
+  // Baca data GPS
+  while (gpsSerial.available() > 0) {
+    if (gps.encode(gpsSerial.read())) {
+      if (gps.location.isValid()) {
+        double latitude = gps.location.lat();
+        double longitude = gps.location.lng();
+        Serial.print("Latitude: ");
+        Serial.println(latitude, 6);
+        Serial.print("Longitude: ");
+        Serial.println(longitude, 6);
+
+        // Kirim latitude dan longitude ke Firebase
+        Firebase.setDouble(firebaseData, "/data/Latitude", latitude);
+        Firebase.setDouble(firebaseData, "/data/Longitude", longitude);
+      }
+    }
+  }
+  if (statussaklar == HIGH) {
+    mode = "Begal";
+    Serial.println("Begal");
+  } else {
+    mode = "Parkir";
+    Serial.println("Parkir");
+  }
+  // Tambahkan data string ke Firebase
+  Firebase.setString(firebaseData, "/data/Mode", mode.c_str());
+
+  // Tambahkan penundaan sesuai kebutuhan
+  delay(1000);
+
+  // Tingkatkan angka berurutan
+  sequenceNumber++;
+}
